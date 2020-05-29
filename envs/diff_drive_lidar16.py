@@ -5,6 +5,7 @@ email: mihir.dharmadhikari@gmail.com
 Openai gym environment for differential drive robot with 2D lidar
 Number of lidar beams can be changed
 All obstacles are circular and spawned randomly at each episode. Obstacles are not allowed to intersect, this is taken care during spawning
+The goal point is always (0.0, 0.0)
 
 Actions: linear velocity [0.0, 1.0], angular velocity [-2.0, 2.0]
 Observations: lidar ranges(all beams), straight line distance to goal, Angular deviation between current heading and straight line towards goal
