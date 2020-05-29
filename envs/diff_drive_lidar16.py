@@ -1,27 +1,37 @@
+'''
+Author: Mihir Dharmadhikari
+email: mihir.dharmadhikari@gmail.com
+
+Openai gym environment for differential drive robot with 2D lidar
+Number of lidar beams can be changed
+All obstacles are circular and spawned randomly at each episode. Obstacles are not allowed to intersect, this is taken care during spawning
+
+Actions: linear velocity [0.0, 1.0], angular velocity [-2.0, 2.0]
+Observations: lidar ranges(all beams), straight line distance to goal, Angular deviation between current heading and straight line towards goal
+'''
 import math
 import gym
 import random
-import time
 from gym import spaces, logger
 from gym.utils import seeding
 import numpy as np
 
+# Required constants
 ROBOT_RADIUS = 0.3
 GOAL_THRESHOLD = ROBOT_RADIUS
 LIDAR_BEAMS = 16
 LIDAR_RANGE = 0.0
 PI = math.pi
 MIN_OBS_NUM = 15
-MAX_OBS_NUM = 25
+MAX_OBS_NUM = 30
 MIN_OBS_RAD = 0.5
 MAX_OBS_RAD = 1.5
-RENDER_SCALE = 50*2/3.0
+# Params for rendering
+RENDER_SCALE = 50*2/3.0  # Experimentally found
 RENDER_X_OFF = 500
 RENDER_Y_OFF = 500
 
-def compareObstDist(obs1, obs2):
-	return obs1[2] < obs2[2]
-
+# All angles are in the range of -PI to PI
 def correctAngle(angle):
 	if angle > PI:
 		angle = angle - 2*PI
@@ -60,8 +70,9 @@ class DiffDriveLidar16(gym.Env):
 
 		self.viewer = None
 
-		high = np.array([1.0, 2.0])
-		low = np.array([0.0, -2.0])
+		# Setting action space
+		high = np.array([1.0, 2.0])  # Upper limit
+		low = np.array([0.0, -2.0])  # Lower limit
 		self.action_space = spaces.Box(low, high)
 
 		beams_max = np.ones(LIDAR_BEAMS)*np.inf
@@ -80,37 +91,28 @@ class DiffDriveLidar16(gym.Env):
 
 		self.obstacles = []  # List of [np.array([x,y]),radius]
 
-		self.ranges = []
-		self.rays = []
+		self.ranges = []  # This stores the distance at which a beam hit. Inf for those who did not hit
+		self.rays = []  # List of Ray object
 		for i in range(0,LIDAR_BEAMS):
 			ray = Ray(-PI + i*PI/(LIDAR_BEAMS/2))
 			self.rays.append(ray)
 			self.ranges.append(np.inf)
 
-		self.verbose = True
-
 	def step(self, action):
-		if self.verbose:
-			# print("Obstacles in step")
-			# print(*self.obstacles, sep='\n')
-			self.verbose = False
 		for ray in self.rays:
 			ray.reset();
 
-		omega = action[1]
-		v = action[0]
-		# print("Action: ", action[0], action[1])
+		omega = action[1]  # Angular velocity
+		v = action[0]  # Linear velocity
+
 		self.curr_yaw = self.curr_yaw + omega*self.dt
 		if self.curr_yaw > PI:
 			self.curr_yaw = (self.curr_yaw - 2*PI)
 		elif self.curr_yaw < -PI:
 			self.curr_yaw = (2*PI + self.curr_yaw)
 
-		# print("Yaw: ", self.curr_yaw)
-		# print("Delta x:", v*self.dt*math.cos(self.curr_yaw), "Delta y:", v*self.dt*math.sin(self.curr_yaw))
 		self.curr_pos[0] = self.curr_pos[0] + v*self.dt*math.cos(self.curr_yaw)
 		self.curr_pos[1] = self.curr_pos[1] + v*self.dt*math.sin(self.curr_yaw)		
-		# print("Pose: ", self.curr_pos[0], self.curr_pos[1])
 
 		# Out of bounds
 		delta_goal = self.curr_pos - self.goal
@@ -125,7 +127,6 @@ class DiffDriveLidar16(gym.Env):
 
 		# Goal reached check
 		if np.linalg.norm(self.goal - self.curr_pos) < GOAL_THRESHOLD:
-			# print("Reached goal!")
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
 			return state, 0.0, True, {}
 
@@ -143,7 +144,6 @@ class DiffDriveLidar16(gym.Env):
 				return state, -100.0, True, {}
 
 		# Ray casting
-		# sorted(obstacles_detailed, cmp=compareObstDist)
 		obstacles_detailed.sort(key=lambda obs:obs[2])
 		# Set ray equations
 		for i in range(0,LIDAR_BEAMS):
@@ -169,9 +169,11 @@ class DiffDriveLidar16(gym.Env):
 											math.sqrt(obs[1]**2 - d**2))
 					ray.setRange(ray_dist)
 
-
+		# Calucate the end point coordinates of the ray
 		for i in range(0,len(self.ranges)):
 			self.ranges[i] = self.rays[i].rng
+			# If the ray has hit something set the end point at that point
+			# Else set it to the periphery of the lidar range
 			if not np.isinf(self.rays[i].rng):
 				end_pt_x = self.curr_pos[0] + self.rays[i].rng*math.cos(correctAngle(self.rays[i].angle + self.curr_yaw))
 				end_pt_y = self.curr_pos[1] + self.rays[i].rng*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
@@ -181,15 +183,12 @@ class DiffDriveLidar16(gym.Env):
 				end_pt_y = self.curr_pos[1] + LIDAR_RANGE*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
 				self.rays[i].end_pt = np.array([end_pt_x, end_pt_y])
 
-			# print(self.rays[i].rng)
-
 		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
 		return state, -0.1, False, {}
 
 
 	def reset(self):
-		self.verbose = True
-		# self.viewer = None
+		# Reset rendering
 		if self.viewer is not None:
 			self.viewer.close()	
 			self.viewer = None
@@ -198,22 +197,26 @@ class DiffDriveLidar16(gym.Env):
 		# Set current pose
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
-		# self.curr_pos = np.array([0.0,5.0])
 		self.curr_yaw = random.uniform(-PI, PI)
-		# self.curr_yaw = 0.0
 
 		# Set obstacles
 		self.obstacles.clear()
 		num_obs = random.randrange(MIN_OBS_NUM, MAX_OBS_NUM)
-		# print("Num of obs:", num_obs)
-		# print("Obstacles:")
 		for i in range(0,num_obs):
 			obs_pos = np.zeros(2)
 			obs_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 			obs_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
 			obs_rad = random.uniform(MIN_OBS_RAD, MAX_OBS_RAD)
+			resampling = False
+			for obs in self.obstacles:
+				if np.linalg.norm(obs[0]-obs_pos) < (obs[1] + obs_rad):
+					print("Resampling obstacle")
+					i -= 1
+					resampling = True
+					break
+			if resampling:
+				continue
 			self.obstacles.append([obs_pos, obs_rad])
-			# print([obs_pos, obs_rad])
 
 
 	def render(self, mode='human', close=True):
@@ -236,16 +239,14 @@ class DiffDriveLidar16(gym.Env):
 			self.viewer.add_geom(self.heading)
 			
 			#Obstacles
-			# print("Obstacles rendering:")
 			for obs in self.obstacles:
-				# print(obs)
 				obs1 = self.viewer.draw_circle(RENDER_SCALE*obs[1])
 				obs1_trans = rendering.Transform()
 				obsx = RENDER_SCALE*obs[0][0] + RENDER_X_OFF
 				obsy = RENDER_SCALE*obs[0][1] + RENDER_Y_OFF
 				obs1_trans.set_translation(obsx, obsy)
 				obs1.add_attr(obs1_trans)
-				obs1.set_color(0.5,0.5,0.5)
+				obs1.set_color(1.0,0.1,0.1)
 				self.viewer.add_geom(obs1)
 
 			# Rays
@@ -273,10 +274,8 @@ class DiffDriveLidar16(gym.Env):
 		self.heading.linewidth.stroke = 5
 
 		for i in range(len(self.render_rays)):
-			# print(self.rays[i].end_pt)
 			self.render_rays[i].start = (self.rT(self.curr_pos)[0], self.rT(self.curr_pos)[1])
 			self.render_rays[i].end = (self.rT(self.rays[i].end_pt)[0], self.rT(self.rays[i].end_pt)[1])
-		time.sleep(0.01)
 		return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
 
