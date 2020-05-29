@@ -1,6 +1,7 @@
 # gym_diff_drive
 ## Overview
-Openai gym environment for differential drive robot with 2D lidar. Number of lidar beams can be changed inside the environment file. All obstacles are circular and spawned randomly on each episode. Obstacles are not allowed to intersect, this is taken care of during spawning.
+Openai gym environment for differential drive robot with 2D lidar. Number of lidar beams can be changed inside the environment file. All obstacles are circular and spawned randomly on each episode. Obstacles are not allowed to intersect, this is taken care of during spawning.  
+The goal point is always (0.0, 0.0)
 
 **Actions**: array [ linear velocity (range: [0.0, 1.0]), angular velocity (range:[-2.0, 2.0]) ]  
 Vector of size = 2
