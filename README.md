@@ -1,6 +1,6 @@
 # gym_diff_drive
 ## Overview
-Lightweight and minimulistic openai gym environment for differential drive robot with 2D lidar. This environment does not require any sophisticated simulator and is meant for running on cloud python notebook based servers like Google Colaboratory.
+Lightweight and minimalistic openai gym environment for differential drive robot with 2D lidar. This environment does not require any sophisticated simulator and is meant for running on cloud python notebook based servers like Google Colaboratory.
 
 
 Number of lidar beams can be changed inside the environment file. All obstacles are circular and spawned randomly on each episode. Obstacles are not allowed to intersect, this is taken care of during spawning.  
