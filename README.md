@@ -5,7 +5,7 @@ Openai gym environment for differential drive robot with 2D lidar. Number of lid
 **Actions**: array [ linear velocity (range: [0.0, 1.0]), angular velocity (range:[-2.0, 2.0]) ]  
 Vector of size = 2
 
-**Observations**: array [ lidar ranges(all beams), straight line distance to goal, Angular deviation between current heading and straight line towards goal ]  
+**Observations**: array [ lidar ranges(all beams), straight line distance to goal, angular deviation between current heading and straight line towards goal ]  
 Vector of size = num of lidar beams + 2
 
 ## Instructions to use the package
