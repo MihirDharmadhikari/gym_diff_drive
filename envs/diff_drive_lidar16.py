@@ -31,7 +31,8 @@ MAX_OBS_RAD = 1.5
 RENDER_SCALE = 50*2/3.0  # Experimentally found
 RENDER_X_OFF = 500
 RENDER_Y_OFF = 500
-
+MAX_VEL = np.array([1.0, 0.5])
+MIN_VEL = np.array([0.0, -0.5])
 # All angles are in the range of -PI to PI
 def correctAngle(angle):
 	if angle > PI:
@@ -74,7 +75,8 @@ class DiffDriveLidar16(gym.Env):
 		# Setting action space
 		high = np.array([1.0, 2.0])  # Upper limit
 		low = np.array([0.0, -2.0])  # Lower limit
-		self.action_space = spaces.Box(low, high)
+		# self.action_space = spaces.Box(low, high)
+		self.action_space = spaces.MultiDiscrete([3,3])
 
 		beams_max = np.ones(LIDAR_BEAMS)*np.inf
 		beams_min = np.zeros(LIDAR_BEAMS)
@@ -87,6 +89,7 @@ class DiffDriveLidar16(gym.Env):
 
 		self.goal = np.array([0.0,0.0])
 		self.curr_pos = np.array([0.0,0.0])
+		self.curr_vel = np.array([0.0,0.0])
 		self.curr_yaw = 0.0
 		self.dt = 0.1
 
@@ -101,19 +104,31 @@ class DiffDriveLidar16(gym.Env):
 
 	def step(self, action):
 		for ray in self.rays:
-			ray.reset();
+			ray.reset()
+		
+		# Rescalling from [0,1,2] to [-0.1,0,0.1]
+		delta_v = (action[0] - 1)*0.1
+		delta_omega = (action[1] - 1)*0.1
 
-		omega = action[1]  # Angular velocity
-		v = action[0]  # Linear velocity
+		self.curr_vel[1] = self.curr_vel[1] + delta_omega  # Angular velocity
+		if self.curr_vel[1] > MAX_VEL[1]:
+			self.curr_vel[1] = MAX_VEL[1]
+		elif self.curr_vel[1] < MIN_VEL[1]:
+			self.curr_vel[1] = MIN_VEL[1]
+		self.curr_vel[0] = self.curr_vel[0] + delta_v  # Linear velocity
+		if self.curr_vel[0] > MAX_VEL[0]:
+			self.curr_vel[0] = MAX_VEL[0]
+		elif self.curr_vel[0] < MIN_VEL[0]:
+			self.curr_vel[0] = MIN_VEL[0]
 
-		self.curr_yaw = self.curr_yaw + omega*self.dt
+		self.curr_yaw = self.curr_yaw + self.curr_vel[1]*self.dt
 		if self.curr_yaw > PI:
 			self.curr_yaw = (self.curr_yaw - 2*PI)
 		elif self.curr_yaw < -PI:
 			self.curr_yaw = (2*PI + self.curr_yaw)
 
-		self.curr_pos[0] = self.curr_pos[0] + v*self.dt*math.cos(self.curr_yaw)
-		self.curr_pos[1] = self.curr_pos[1] + v*self.dt*math.sin(self.curr_yaw)		
+		self.curr_pos[0] = self.curr_pos[0] + self.curr_vel[0]*self.dt*math.cos(self.curr_yaw)
+		self.curr_pos[1] = self.curr_pos[1] + self.curr_vel[0]*self.dt*math.sin(self.curr_yaw)		
 
 		# Out of bounds
 		delta_goal = self.curr_pos - self.goal
@@ -198,6 +213,7 @@ class DiffDriveLidar16(gym.Env):
 		# Set current pose
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
+		self.curr_vel = np.array([0.0,0.0])
 		self.curr_yaw = random.uniform(-PI, PI)
 
 		# Set obstacles
