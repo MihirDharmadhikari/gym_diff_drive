@@ -211,7 +211,6 @@ class DiffDriveLidar16(gym.Env):
 			resampling = False
 			for obs in self.obstacles:
 				if np.linalg.norm(obs[0]-obs_pos) < (obs[1] + obs_rad):
-					print("Resampling obstacle")
 					i -= 1
 					resampling = True
 					break
