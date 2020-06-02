@@ -142,7 +142,7 @@ class DiffDriveLidar16(gym.Env):
 			rew = 1.0
 		else:
 			rew = -1.0
-
+		self.prev_goal_dist = goal_dist
 		self.steps += 1
 		if self.steps > MAX_EPISODES:
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
