@@ -18,7 +18,7 @@ from gym.utils import seeding
 import numpy as np
 
 # Required constants
-MAX_EPISODES = 1000
+MAX_STEPS = 1000
 COLLISION_PENALTY = -2.0
 ROBOT_RADIUS = 0.3
 GOAL_THRESHOLD = ROBOT_RADIUS
@@ -78,7 +78,7 @@ class DiffDriveLidar16(gym.Env):
 		high = np.array([1.0, 2.0])  # Upper limit
 		low = np.array([0.0, -2.0])  # Lower limit
 		# self.action_space = spaces.Box(low, high)
-		self.action_space = spaces.MultiDiscrete([3,3])
+		self.action_space = spaces.Discrete(LIDAR_BEAMS)
 
 		beams_max = np.ones(LIDAR_BEAMS)*np.inf
 		beams_min = np.zeros(LIDAR_BEAMS)
@@ -111,45 +111,27 @@ class DiffDriveLidar16(gym.Env):
 		for ray in self.rays:
 			ray.reset()
 		
-		# Rescalling from [0,1,2] to [-0.1,0,0.1]
-		delta_v = (action[0] - 1)*0.1
-		delta_omega = (action[1] - 1)*0.1
+		collision = 0.0
+		goal_reached = 0.0
+		oob = 0.0  # Out of bounds
+		max_steps = 0.0
+		closer = -1.0
 
-		self.curr_vel[1] = self.curr_vel[1] + delta_omega  # Angular velocity
-		if self.curr_vel[1] > MAX_VEL[1]:
-			self.curr_vel[1] = MAX_VEL[1]
-		elif self.curr_vel[1] < MIN_VEL[1]:
-			self.curr_vel[1] = MIN_VEL[1]
-		self.curr_vel[0] = self.curr_vel[0] + delta_v  # Linear velocity
-		if self.curr_vel[0] > MAX_VEL[0]:
-			self.curr_vel[0] = MAX_VEL[0]
-		elif self.curr_vel[0] < MIN_VEL[0]:
-			self.curr_vel[0] = MIN_VEL[0]
-
-		self.curr_yaw = self.curr_yaw + self.curr_vel[1]*self.dt
-		if self.curr_yaw > PI:
-			self.curr_yaw = (self.curr_yaw - 2*PI)
-		elif self.curr_yaw < -PI:
-			self.curr_yaw = (2*PI + self.curr_yaw)
-
-		self.curr_pos[0] = self.curr_pos[0] + self.curr_vel[0]*self.dt*math.cos(self.curr_yaw)
-		self.curr_pos[1] = self.curr_pos[1] + self.curr_vel[0]*self.dt*math.sin(self.curr_yaw)		
-
+		self.curr_pos, self.curr_yaw, self.curr_vel, delta_yaw = self.calculateVelocities(action)
 		
 		delta_goal = self.goal - self.curr_pos
 		goal_dist = np.linalg.norm(delta_goal)
 		goal_dir_error = correctAngle(self.curr_yaw - math.atan2(delta_goal[1], delta_goal[0]))
 		if goal_dist < self.prev_goal_dist:
-			rew = 1.0
+			closer = 1.0
 		else:
-			rew = -1.5
+			closer = -1.0
 		self.prev_goal_dist = goal_dist
 
 		# Max steps
 		self.steps += 1
-		if self.steps > MAX_EPISODES:
-			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, -1.5, True, {}
+		if self.steps > MAX_STEPS:
+			max_steps = 1.0
 
 			
 		# Out of bounds
@@ -157,14 +139,11 @@ class DiffDriveLidar16(gym.Env):
 		   self.curr_pos[1] < self.area_min[1] or
 		   self.curr_pos[0] > self.area_max[0] or
 		   self.curr_pos[1] > self.area_max[1]):
-			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, COLLISION_PENALTY, True, {}
+			oob = 1.0
 
 		# Goal reached check
 		if np.linalg.norm(self.goal - self.curr_pos) < GOAL_THRESHOLD:
-			print("Goal Reached")
-			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, -COLLISION_PENALTY, True, {}
+			goal_reached = 1.0
 
 		# Check collision
 		for obs in self.obstacles:
@@ -173,13 +152,26 @@ class DiffDriveLidar16(gym.Env):
 
 			if obst_dist < (obs[1] + ROBOT_RADIUS):
 				state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-				return state, COLLISION_PENALTY, True, {}
+				collision = 1.0
+				break
 
 		# Ray casting
 		self.rayCast()
 
+		reward = (-collision) + (-oob) + goal_reached + closer + (-self.steps/MAX_STEPS)
+
+		if collision or goal_reached or max_steps or oob:
+			done = True
+		else:
+			done = False 
+
+		info = {}
+		if goal_reached:
+			info['goal_reached'] = True
+		else:
+			info['goal_reached'] = False
 		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-		return state, rew, False, {}
+		return state, reward, done, info
 
 
 	def reset(self):
@@ -188,7 +180,6 @@ class DiffDriveLidar16(gym.Env):
 		if self.viewer is not None:
 			self.viewer.close()	
 			self.viewer = None
-			
 
 		# Set current pose
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
@@ -349,3 +340,31 @@ class DiffDriveLidar16(gym.Env):
 				end_pt_x = self.curr_pos[0] + LIDAR_RANGE*math.cos(correctAngle(self.rays[i].angle + self.curr_yaw))
 				end_pt_y = self.curr_pos[1] + LIDAR_RANGE*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
 				self.rays[i].end_pt = np.array([end_pt_x, end_pt_y])
+
+	def calculateVelocities(self, action):
+		delta_yaw = -PI + float(action)*PI/8
+		
+		lin_acc = math.cos(delta_yaw)
+		ang_acc = math.sin(delta_yaw/2.0)
+
+		lin_vel = self.curr_vel[0] + lin_acc * self.dt
+		ang_vel = self.curr_vel[1] + ang_acc * self.dt
+		vel = np.array([lin_vel, ang_vel])
+		if vel[1] > MAX_VEL[1]:
+			vel[1] = MAX_VEL[1]
+		elif vel[1] < MIN_VEL[1]:
+			vel[1] = MIN_VEL[1]
+		if vel[0] > MAX_VEL[0]:
+			vel[0] = MAX_VEL[0]
+		elif vel[0] < MIN_VEL[0]:
+			vel[0] = MIN_VEL[0]
+
+		yaw = self.curr_yaw +  ang_vel * self.dt
+		yaw = correctAngle(yaw)
+		x = self.curr_pos[0] + vel[0] * self.dt * math.cos(yaw)
+		y = self.curr_pos[1] + vel[0] * self.dt * math.sin(yaw)
+		pos = np.array([x, y])
+
+		return pos, yaw, vel, delta_yaw
+
+
