@@ -19,7 +19,7 @@ import numpy as np
 
 # Required constants
 MAX_EPISODES = 1000
-COLLISION_PENALTY = -1.0
+COLLISION_PENALTY = -2.0
 ROBOT_RADIUS = 0.3
 GOAL_THRESHOLD = ROBOT_RADIUS
 LIDAR_BEAMS = 16
@@ -136,7 +136,7 @@ class DiffDriveLidar16(gym.Env):
 		self.curr_pos[1] = self.curr_pos[1] + self.curr_vel[0]*self.dt*math.sin(self.curr_yaw)		
 
 		
-		delta_goal = self.curr_pos - self.goal
+		delta_goal = self.goal - self.curr_pos
 		goal_dist = np.linalg.norm(delta_goal)
 		goal_dir_error = correctAngle(self.curr_yaw - math.atan2(delta_goal[1], delta_goal[0]))
 		if goal_dist < self.prev_goal_dist:
@@ -206,6 +206,9 @@ class DiffDriveLidar16(gym.Env):
 			obs_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
 			obs_rad = random.uniform(MIN_OBS_RAD, MAX_OBS_RAD)
 			resampling = False
+			if np.linalg.norm(obs_pos-self.goal) <= (obs_rad + 2*ROBOT_RADIUS):
+				i -= 1
+				continue
 			for obs in self.obstacles:
 				if np.linalg.norm(obs[0]-obs_pos) < (obs[1] + obs_rad):
 					i -= 1
@@ -253,6 +256,15 @@ class DiffDriveLidar16(gym.Env):
 				obs1.add_attr(obs1_trans)
 				obs1.set_color(1.0,0.1,0.1)
 				self.viewer.add_geom(obs1)
+			
+			# Goal
+			goal_obj = self.viewer.draw_circle(RENDER_SCALE*2*ROBOT_RADIUS)
+			goal_trans = rendering.Transform()
+			goal_rt = self.rT(self.goal)
+			goal_trans.set_translation(goal_rt[0], goal_rt[1])
+			goal_obj.add_attr(goal_trans)
+			goal_obj.set_color(0.0,1.0,0.0) #Green
+			self.viewer.add_geom(goal_obj)
 
 			# Rays
 			self.render_rays = []
