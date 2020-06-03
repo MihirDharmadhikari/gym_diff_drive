@@ -125,7 +125,7 @@ class DiffDriveLidar16(gym.Env):
 		if goal_dist < self.prev_goal_dist:
 			closer = 1.0
 		else:
-			closer = -1.0
+			closer = 0.0
 		self.prev_goal_dist = goal_dist
 
 		# Max steps
@@ -158,7 +158,14 @@ class DiffDriveLidar16(gym.Env):
 		# Ray casting
 		self.rayCast()
 
-		reward = (-collision) + (-oob) + goal_reached + closer + (-self.steps/MAX_STEPS)
+		# reward = (-collision) + (-oob) + goal_reached + closer + (-self.steps/MAX_STEPS)
+		if collision:
+			reward = -1.0
+		elif oob:
+			reward = -1.0
+		else:
+			reward = closer
+		
 
 		if collision or goal_reached or max_steps or oob:
 			done = True
@@ -184,8 +191,10 @@ class DiffDriveLidar16(gym.Env):
 		# Set current pose
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
-		self.curr_vel[0] = random.uniform(MIN_VEL[0], MAX_VEL[0])
-		self.curr_vel[1] = random.uniform(MIN_VEL[1], MAX_VEL[1])
+		# self.curr_vel[0] = random.uniform(MIN_VEL[0], MAX_VEL[0])
+		# self.curr_vel[1] = random.uniform(MIN_VEL[1], MAX_VEL[1])
+		self.curr_vel[0] = 0.0
+		self.curr_vel[1] = 0.0
 		self.curr_yaw = random.uniform(-PI, PI)
 
 		# Set obstacles
