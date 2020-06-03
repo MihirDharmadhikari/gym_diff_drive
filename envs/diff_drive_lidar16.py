@@ -19,11 +19,11 @@ import numpy as np
 
 # Required constants
 MAX_EPISODES = 1000
-COLLISION_PENALTY = -5000
+COLLISION_PENALTY = -1.0
 ROBOT_RADIUS = 0.3
 GOAL_THRESHOLD = ROBOT_RADIUS
 LIDAR_BEAMS = 16
-LIDAR_RANGE = 15.0
+LIDAR_RANGE = 30.0*math.sqrt(2)
 PI = math.pi
 MIN_OBS_NUM = 15
 MAX_OBS_NUM = 30
@@ -33,8 +33,8 @@ MAX_OBS_RAD = 1.5
 RENDER_SCALE = 50*2/3.0  # Experimentally found
 RENDER_X_OFF = 500
 RENDER_Y_OFF = 500
-MAX_VEL = np.array([1.0, 0.3])
-MIN_VEL = np.array([0.0, -0.3])
+MAX_VEL = np.array([1.0, 0.5])
+MIN_VEL = np.array([0.0, -0.5])
 # All angles are in the range of -PI to PI
 def correctAngle(angle):
 	if angle > PI:
@@ -142,14 +142,14 @@ class DiffDriveLidar16(gym.Env):
 		if goal_dist < self.prev_goal_dist:
 			rew = 1.0
 		else:
-			rew = -2.0
+			rew = -1.5
 		self.prev_goal_dist = goal_dist
 
 		# Max steps
 		self.steps += 1
 		if self.steps > MAX_EPISODES:
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, COLLISION_PENALTY, True, {}
+			return state, -1.5, True, {}
 
 			
 		# Out of bounds
@@ -162,6 +162,7 @@ class DiffDriveLidar16(gym.Env):
 
 		# Goal reached check
 		if np.linalg.norm(self.goal - self.curr_pos) < GOAL_THRESHOLD:
+			print("Goal Reached")
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
 			return state, -COLLISION_PENALTY, True, {}
 
