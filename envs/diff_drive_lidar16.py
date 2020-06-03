@@ -19,10 +19,11 @@ import numpy as np
 
 # Required constants
 MAX_EPISODES = 1000
+COLLISION_PENALTY = -5000
 ROBOT_RADIUS = 0.3
 GOAL_THRESHOLD = ROBOT_RADIUS
 LIDAR_BEAMS = 16
-LIDAR_RANGE = 5.0
+LIDAR_RANGE = 15.0
 PI = math.pi
 MIN_OBS_NUM = 15
 MAX_OBS_NUM = 30
@@ -141,12 +142,14 @@ class DiffDriveLidar16(gym.Env):
 		if goal_dist < self.prev_goal_dist:
 			rew = 1.0
 		else:
-			rew = -1.0
+			rew = -2.0
 		self.prev_goal_dist = goal_dist
+
+		# Max steps
 		self.steps += 1
 		if self.steps > MAX_EPISODES:
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, rew, True, {}
+			return state, COLLISION_PENALTY, True, {}
 
 			
 		# Out of bounds
@@ -155,12 +158,12 @@ class DiffDriveLidar16(gym.Env):
 		   self.curr_pos[0] > self.area_max[0] or
 		   self.curr_pos[1] > self.area_max[1]):
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, -float(MAX_EPISODES), True, {}
+			return state, COLLISION_PENALTY, True, {}
 
 		# Goal reached check
 		if np.linalg.norm(self.goal - self.curr_pos) < GOAL_THRESHOLD:
 			state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-			return state, 1.0, True, {}
+			return state, -COLLISION_PENALTY, True, {}
 
 		# Check collision
 		for obs in self.obstacles:
@@ -169,7 +172,7 @@ class DiffDriveLidar16(gym.Env):
 
 			if obst_dist < (obs[1] + ROBOT_RADIUS):
 				state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
-				return state, -float(MAX_EPISODES), True, {}
+				return state, COLLISION_PENALTY, True, {}
 
 		# Ray casting
 		self.rayCast()
@@ -179,6 +182,7 @@ class DiffDriveLidar16(gym.Env):
 
 
 	def reset(self):
+		self.steps = 0
 		# Reset rendering
 		if self.viewer is not None:
 			self.viewer.close()	
@@ -188,7 +192,8 @@ class DiffDriveLidar16(gym.Env):
 		# Set current pose
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
-		self.curr_vel = np.array([0.0,0.0])
+		self.curr_vel[0] = random.uniform(MIN_VEL[0], MAX_VEL[0])
+		self.curr_vel[1] = random.uniform(MIN_VEL[1], MAX_VEL[1])
 		self.curr_yaw = random.uniform(-PI, PI)
 
 		# Set obstacles
@@ -283,14 +288,6 @@ class DiffDriveLidar16(gym.Env):
 
 	def rayCast(self):
 		obstacles_detailed = []  # Obstacles with distance from robot
-		for obs in self.obstacles:
-			delta = obs[0]-self.curr_pos
-			obst_dist = np.linalg.norm(delta)
-
-			obst_yaw = math.atan2(delta[1], delta[0])
-			obstacles_detailed.append(obs+[obst_dist, obst_yaw])
-			
-		obstacles_detailed.sort(key=lambda obs:obs[2])
 		# Set ray equationsles_detailed = []  # Obstacles with distance from robot
 		for obs in self.obstacles:
 			delta = obs[0]-self.curr_pos
@@ -326,48 +323,9 @@ class DiffDriveLidar16(gym.Env):
 
 		# Calucate the end point coordinates of the ray
 		for i in range(0,len(self.ranges)):
-			self.ranges[i] = self.rays[i].rng
-			# If the ray has hit something set the end point at that point
-			# Else set it to the periphery of the lidar range
-			if not np.isinf(self.rays[i].rng):
-				end_pt_x = self.curr_pos[0] + self.rays[i].rng*math.cos(correctAngle(self.rays[i].angle + self.curr_yaw))
-				end_pt_y = self.curr_pos[1] + self.rays[i].rng*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
-				self.rays[i].end_pt = np.array([end_pt_x, end_pt_y])
-			else:
-				end_pt_x = self.curr_pos[0] + LIDAR_RANGE*math.cos(correctAngle(self.rays[i].angle + self.curr_yaw))
-				end_pt_y = self.curr_pos[1] + LIDAR_RANGE*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
-				self.rays[i].end_pt = np.array([end_pt_x, end_pt_y])
-		for i in range(0,LIDAR_BEAMS):
-			m = math.tan(correctAngle(self.curr_yaw + self.rays[i].angle))
-			l = []
-			l.append(m)
-			l.append(-1)
-			l.append(self.curr_pos[1] - m*self.curr_pos[0])
-			self.rays[i].setEqn(l)
-		# Do ray casting
-		for obs in obstacles_detailed:
-			for ray in self.rays:
-				if not np.isinf(ray.rng):  # This ray has already hit an obstacle
-					continue
-				l = ray.eqn
-				# Check if this obstacle is in the range of this ray
-				if abs(correctAngle(ray.angle + self.curr_yaw) - obs[3]) < PI/(LIDAR_BEAMS/2) or abs(correctAngle(ray.angle + self.curr_yaw) - obs[3]) > 2*PI - PI/(LIDAR_BEAMS/2):
-					d = abs((l[0]*obs[0][0] + l[1]*obs[0][1] + l[2]) / 
-										math.sqrt(l[0]**2 + l[1]**2))
-					if d > obs[1]:
-						continue
-					ray_dist = (math.sqrt((self.curr_pos[0]-obs[0][0])**2 + (self.curr_pos[1]-obs[0][1])**2 - d**2) - 
-											math.sqrt(obs[1]**2 - d**2))
-					if ray_dist > LIDAR_RANGE:
-						ray_dist = LIDAR_RANGE
-					ray.setRange(ray_dist)
-
-		# Calucate the end point coordinates of the ray
-		for i in range(0,len(self.ranges)):
-			self.ranges[i] = self.rays[i].rng
-			if self.ranges[i] > LIDAR_RANGE:
-				self.ranges[i] = LIDAR_RANGE
+			if np.isinf(self.rays[i].rng):
 				self.rays[i].rng = LIDAR_RANGE
+			self.ranges[i] = self.rays[i].rng
 			# If the ray has hit something set the end point at that point
 			# Else set it to the periphery of the lidar range
 			if not np.isinf(self.rays[i].rng):
@@ -378,5 +336,3 @@ class DiffDriveLidar16(gym.Env):
 				end_pt_x = self.curr_pos[0] + LIDAR_RANGE*math.cos(correctAngle(self.rays[i].angle + self.curr_yaw))
 				end_pt_y = self.curr_pos[1] + LIDAR_RANGE*math.sin(correctAngle(self.rays[i].angle + self.curr_yaw))
 				self.rays[i].end_pt = np.array([end_pt_x, end_pt_y])
-				self.ranges[i] = LIDAR_RANGE
-
