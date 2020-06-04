@@ -154,9 +154,10 @@ class DiffDriveLidar16(gym.Env):
 		# print("Pos: current:", goal_dist, "prev:", self.prev_goal_dist)
 		# print("Vel:", self.curr_vel)
 		if goal_dist < self.prev_goal_dist:
-			delta_g = 1.0
+			delta_g = (15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
 		else:
-			delta_g = -1.0
+			delta_g = -(15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
+			
 		self.prev_goal_dist = goal_dist
 
 		delta_dir = np.sign(abs(self.pre_goal_dir_error) - abs(goal_dir_error))
@@ -197,7 +198,11 @@ class DiffDriveLidar16(gym.Env):
 		if front_obst_dist >= self.prev_obs_dist:
 			delta_obs_rew = 0.0
 		else:
-			delta_obs_rew = -1.0
+			if front_obst_dist > 2.0*float(LIDAR_RANGE)/3.0:
+				delta_obs_rew = 0.0
+			else:
+				delta_obs_rew = (-(2.0*float(LIDAR_RANGE)/3.0 - front_obst_dist))/(2.0*float(LIDAR_RANGE)/3.0)
+			# delta_obs_rew = -1.0
 		self.prev_obs_dist = front_obst_dist
 
 		if abs(self.curr_vel[1]) > 0.0:
@@ -212,7 +217,8 @@ class DiffDriveLidar16(gym.Env):
 			reward = COLLISION_PENALTY
 		else:
 			# print(delta_g, delta_obs_rew, 5*abs(delta_omega))
-			reward = delta_g + delta_obs_rew - delta_yaw_rew
+			# print(delta_g, delta_obs_rew)
+			reward = delta_g + delta_obs_rew
 			# reward = kDg * delta_g + kDd * delta_dir - self.steps/MAX_STEPS
 		
 
@@ -239,13 +245,11 @@ class DiffDriveLidar16(gym.Env):
 			
 
 		# Set current pose
-		# self.curr_pos = np.array([10.0,1.0])
+		# self.curr_pos = np.array([-10.0,1.0])
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
-		# self.curr_vel = np.array([0.0,0.0])
-		self.curr_vel[0] = random.uniform(MIN_VEL[0], MAX_VEL[0])
-		self.curr_vel[1] = random.uniform(MIN_VEL[1], MAX_VEL[1])
-		# self.curr_yaw = PI
+		self.curr_vel = np.array([0.0,0.0])
+		# self.curr_yaw = 0.0
 		self.curr_yaw = random.uniform(-PI, PI)
 
 		# Set obstacles
