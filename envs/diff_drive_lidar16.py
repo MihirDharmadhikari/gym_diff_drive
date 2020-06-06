@@ -78,8 +78,6 @@ class DiffDriveLidar16(gym.Env):
 		self.viewer = None
 
 		# Setting action space
-		high = np.array([1.0, 2.0])  # Upper limit
-		low = np.array([0.0, -2.0])  # Lower limit
 		# self.action_space = spaces.Box(low, high)
 		self.action_space = spaces.MultiDiscrete([3,3])
 
@@ -125,11 +123,14 @@ class DiffDriveLidar16(gym.Env):
 		delta_v = (action[0] - 1)*0.1
 		delta_omega = (action[1] - 1)*0.1
 
+		# print(delta_v, delta_omega)
+
 		self.curr_vel[1] = self.curr_vel[1] + delta_omega  # Angular velocity
 		if self.curr_vel[1] > MAX_VEL[1]:
 			self.curr_vel[1] = MAX_VEL[1]
 		elif self.curr_vel[1] < MIN_VEL[1]:
 			self.curr_vel[1] = MIN_VEL[1]
+
 		self.curr_vel[0] = self.curr_vel[0] + delta_v  # Linear velocity
 		if self.curr_vel[0] > MAX_VEL[0]:
 			self.curr_vel[0] = MAX_VEL[0]
@@ -153,10 +154,15 @@ class DiffDriveLidar16(gym.Env):
 		# delta_g = np.sign(self.prev_goal_dist - goal_dist)
 		# print("Pos: current:", goal_dist, "prev:", self.prev_goal_dist)
 		# print("Vel:", self.curr_vel)
+		# if goal_dist < self.prev_goal_dist:
+		# 	delta_g = (15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
+		# else:
+		# 	delta_g = -(15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
+			
 		if goal_dist < self.prev_goal_dist:
-			delta_g = (15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
+			delta_g = 2.0
 		else:
-			delta_g = -(15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
+			delta_g = -1.0
 			
 		self.prev_goal_dist = goal_dist
 
@@ -215,10 +221,12 @@ class DiffDriveLidar16(gym.Env):
 			reward = COLLISION_PENALTY
 		elif max_steps:
 			reward = COLLISION_PENALTY
+		elif goal_reached:
+			reward = -2*COLLISION_PENALTY
 		else:
 			# print(delta_g, delta_obs_rew, 5*abs(delta_omega))
 			# print(delta_g, delta_obs_rew)
-			reward = delta_g + delta_obs_rew
+			reward = delta_g - math.sqrt(delta_v**2 + delta_omega**2) - 0.1  # reward for going closer to goal, penalty for control action and each additional step
 			# reward = kDg * delta_g + kDd * delta_dir - self.steps/MAX_STEPS
 		
 
@@ -249,8 +257,8 @@ class DiffDriveLidar16(gym.Env):
 		self.curr_pos[0] = random.uniform(self.area_min[0], self.area_max[0])
 		self.curr_pos[1] = random.uniform(self.area_min[1], self.area_max[1])
 		self.curr_vel = np.array([0.0,0.0])
-		# self.curr_yaw = 0.0
-		self.curr_yaw = random.uniform(-PI, PI)
+		self.curr_yaw = 0.0
+		# self.curr_yaw = random.uniform(-PI, PI)
 
 		# Set obstacles
 		self.obstacles.clear()
