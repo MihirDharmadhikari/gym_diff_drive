@@ -79,15 +79,16 @@ class DiffDriveLidar16(gym.Env):
 
 		# Setting action space
 		# self.action_space = spaces.Box(low, high)
-		self.action_space = spaces.MultiDiscrete([3,3])
+		# self.action_space = spaces.MultiDiscrete([3,3])
+		self.action_space = spaces.Discrete(3)
 
 		beams_max = np.ones(LIDAR_BEAMS)*np.inf
 		beams_min = np.zeros(LIDAR_BEAMS)
 		max_goal_x_dist = max(abs(self.area_min[0]), abs(self.area_max[0]))
 		max_goal_y_dist = max(abs(self.area_min[1]), abs(self.area_max[1]))
 		max_goal_dist = math.sqrt(max_goal_x_dist**2 + max_goal_y_dist**2)
-		low = np.append(beams_min, np.array([0.0, -PI]))
-		high = np.append(beams_max, np.array([max_goal_dist, PI]))
+		low = np.append(beams_min, np.array([0.0, -PI, -PI]))
+		high = np.append(beams_max, np.array([max_goal_dist, PI, PI]))
 		self.observation_space = spaces.Box(low, high)
 
 		self.goal = np.array([0.0,0.0])
@@ -120,8 +121,9 @@ class DiffDriveLidar16(gym.Env):
 		goal_reached = 0.0
 		
 		# Rescalling from [0,1,2] to [-0.1,0,0.1]
-		delta_v = (action[0] - 1)*0.1
-		delta_omega = (action[1] - 1)*0.1
+		# delta_v = (action[0] - 1)*0.1
+		# delta_omega = (action[1] - 1)*0.1
+		delta_omega = (action - 1)*0.1
 
 		# print(delta_v, delta_omega)
 
@@ -131,11 +133,13 @@ class DiffDriveLidar16(gym.Env):
 		elif self.curr_vel[1] < MIN_VEL[1]:
 			self.curr_vel[1] = MIN_VEL[1]
 
-		self.curr_vel[0] = self.curr_vel[0] + delta_v  # Linear velocity
-		if self.curr_vel[0] > MAX_VEL[0]:
-			self.curr_vel[0] = MAX_VEL[0]
-		elif self.curr_vel[0] < MIN_VEL[0]:
-			self.curr_vel[0] = MIN_VEL[0]
+		# self.curr_vel[0] = self.curr_vel[0] + delta_v  # Linear velocity
+		# if self.curr_vel[0] > MAX_VEL[0]:
+		# 	self.curr_vel[0] = MAX_VEL[0]
+		# elif self.curr_vel[0] < MIN_VEL[0]:
+		# 	self.curr_vel[0] = MIN_VEL[0]
+		
+		self.curr_vel[0] = 0.5  # Fixed vel for now
 
 		self.curr_yaw = self.curr_yaw + self.curr_vel[1]*self.dt
 		if self.curr_yaw > PI:
@@ -160,9 +164,9 @@ class DiffDriveLidar16(gym.Env):
 		# 	delta_g = -(15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
 			
 		if goal_dist < self.prev_goal_dist:
-			delta_g = 2.0
+			delta_g = 1
 		else:
-			delta_g = -1.0
+			delta_g = 0
 			
 		self.prev_goal_dist = goal_dist
 
@@ -217,17 +221,24 @@ class DiffDriveLidar16(gym.Env):
 			delta_yaw_rew = 0.0
 
 		# reward = (-collision) + (-oob) + goal_reached + delta_g + (-self.steps/MAX_STEPS)
-		if collision:
-			reward = COLLISION_PENALTY
-		elif max_steps:
-			reward = COLLISION_PENALTY
-		elif goal_reached:
-			reward = -2*COLLISION_PENALTY
+		# if collision:
+		# 	reward = COLLISION_PENALTY
+		# elif max_steps:
+		# 	reward = COLLISION_PENALTY
+		# elif goal_reached:
+		# 	reward = -2*COLLISION_PENALTY
+		# else:
+		# 	# print(delta_g, delta_obs_rew, 5*abs(delta_omega))
+		# 	# print(delta_g, delta_obs_rew)
+		# 	reward = delta_g - math.sqrt(delta_omega**2) - 0.1  # reward for going closer to goal, penalty for control action and each additional step
+		# 	# reward = kDg * delta_g + kDd * delta_dir - self.steps/MAX_STEPS
+
+		if goal_reached:
+			reward = 1
+		elif collision or max_steps or oob:
+			reward = 0
 		else:
-			# print(delta_g, delta_obs_rew, 5*abs(delta_omega))
-			# print(delta_g, delta_obs_rew)
-			reward = delta_g - math.sqrt(delta_v**2 + delta_omega**2) - 0.1  # reward for going closer to goal, penalty for control action and each additional step
-			# reward = kDg * delta_g + kDd * delta_dir - self.steps/MAX_STEPS
+			reward = delta_g
 		
 
 		if collision or goal_reached or max_steps or oob:
@@ -240,7 +251,7 @@ class DiffDriveLidar16(gym.Env):
 			info['goal_reached'] = True
 		else:
 			info['goal_reached'] = False
-		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
+		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error, self.curr_yaw]))
 		return state, reward, done, info
 
 
@@ -303,7 +314,7 @@ class DiffDriveLidar16(gym.Env):
 		self.prev_goal_dist = goal_dist
 		self.pre_goal_dir_error = goal_dir_error
 		self.prev_obs_dist = self.ranges[int(LIDAR_BEAMS/2 - 1)]
-		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error]))
+		state = np.append(np.array(self.ranges), np.array([goal_dist, goal_dir_error, self.curr_yaw]))
 		return state
 
 
