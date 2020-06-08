@@ -163,10 +163,12 @@ class DiffDriveLidar16(gym.Env):
 		# else:
 		# 	delta_g = -(15.0*math.sqrt(2.0) - goal_dist)/(15.0*math.sqrt(2.0))
 			
-		if goal_dist < self.prev_goal_dist:
-			delta_g = 1
-		else:
-			delta_g = 0
+		# if goal_dist < self.prev_goal_dist:
+		# 	delta_g = 1
+		# else:
+		# 	delta_g = 0
+		delta_g = self.prev_goal_dist - goal_dist
+		# print(delta_g)
 			
 		self.prev_goal_dist = goal_dist
 
@@ -235,10 +237,11 @@ class DiffDriveLidar16(gym.Env):
 
 		if goal_reached:
 			reward = 1
-		elif collision or max_steps or oob:
-			reward = 0
+		elif collision or oob:
+			reward = -1
 		else:
-			reward = delta_g
+			reward = 10*delta_g - 0.01
+			# print(reward)
 		
 
 		if collision or goal_reached or max_steps or oob:
