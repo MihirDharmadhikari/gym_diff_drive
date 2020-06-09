@@ -102,7 +102,7 @@ class DiffDriveLidar16(gym.Env):
 
 	def step(self, action):
 		for ray in self.rays:
-			ray.reset();
+			ray.reset()
 
 		omega = action[1]  # Angular velocity
 		v = action[0]  # Linear velocity
