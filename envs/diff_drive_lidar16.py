@@ -87,8 +87,8 @@ class DiffDriveLidar16(gym.Env):
 		max_goal_x_dist = max(abs(self.area_min[0]), abs(self.area_max[0]))
 		max_goal_y_dist = max(abs(self.area_min[1]), abs(self.area_max[1]))
 		max_goal_dist = math.sqrt(max_goal_x_dist**2 + max_goal_y_dist**2)
-		low = np.append( beams_min, np.array( [ 0.0, -PI, -PI, min( self.area_min[0], self.area_min[1] ) ] ) )
-		high = np.append( beams_max, np.array( [ max_goal_dist, PI, PI, max( self.area_max[0], self.area_max[1] ) ] ) )
+		low = np.append( beams_min, np.array( [ 0.0, -PI, -PI, min( self.area_min[0], self.area_min[1] ), min( self.area_min[0], self.area_min[1] ) ] ) )
+		high = np.append( beams_max, np.array( [ max_goal_dist, PI, PI, max( self.area_max[0], self.area_max[1] ), max( self.area_max[0], self.area_max[1] ) ] ) )
 		self.observation_space = spaces.Box(low, high)
 
 		self.goal = np.array([0.0,0.0])
