@@ -238,11 +238,11 @@ class DiffDriveLidar16(gym.Env):
 		# 	# reward = kDg * delta_g + kDd * delta_dir - self.steps/MAX_STEPS
 
 		if goal_reached:
-			reward = 0
+			reward = 1
 		elif collision or oob:
-			reward = -10
-		else:
 			reward = -1
+		else:
+			reward = 0
 			# print(reward)
 		
 
