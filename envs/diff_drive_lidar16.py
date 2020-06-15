@@ -87,8 +87,10 @@ class DiffDriveLidar16(gym.Env):
 		max_goal_x_dist = max(abs(self.area_min[0]), abs(self.area_max[0]))
 		max_goal_y_dist = max(abs(self.area_min[1]), abs(self.area_max[1]))
 		max_goal_dist = math.sqrt(max_goal_x_dist**2 + max_goal_y_dist**2)
-		low = np.append( beams_min, np.array( [ 0.0, -PI, -PI, min( self.area_min[0], self.area_min[1] ), min( self.area_min[0], self.area_min[1] ) ] ) )
-		high = np.append( beams_max, np.array( [ max_goal_dist, PI, PI, max( self.area_max[0], self.area_max[1] ), max( self.area_max[0], self.area_max[1] ) ] ) )
+		# low = np.append( beams_min, np.array( [ 0.0, -PI, -PI, min( self.area_min[0], self.area_min[1] ), min( self.area_min[0], self.area_min[1] ) ] ) )
+		# high = np.append( beams_max, np.array( [ max_goal_dist, PI, PI, max( self.area_max[0], self.area_max[1] ), max( self.area_max[0], self.area_max[1] ) ] ) )
+		low = np.append( beams_min, np.array( [ min(self.area_min[0], self.area_min[1]), min(self.area_min[0], self.area_min[1]), -PI, min(self.area_min[0], self.area_min[1]), min(self.area_min[0], self.area_min[1]) ] ) )
+		high = np.append( beams_max, np.array( [ max(self.area_max[0], self.area_max[1]), max(self.area_max[0], self.area_max[1]), PI, max(self.area_max[0], self.area_max[1]), max(self.area_max[0], self.area_max[1]) ] ) )
 		self.observation_space = spaces.Box(low, high)
 
 		self.goal = np.array([0.0,0.0])
@@ -254,7 +256,7 @@ class DiffDriveLidar16(gym.Env):
 			info['goal_reached'] = True
 		else:
 			info['goal_reached'] = False
-		state = np.append(np.array(self.ranges), np.append(np.array([goal_dist, goal_dir_error, self.curr_yaw]), self.goal))
+		state = np.append(np.array(self.ranges), np.append(np.array([self.curr_pos[0], self.curr_pos[1], self.curr_yaw]), self.goal))
 		return state, reward, done, info
 
 
@@ -317,7 +319,7 @@ class DiffDriveLidar16(gym.Env):
 		self.prev_goal_dist = goal_dist
 		self.pre_goal_dir_error = goal_dir_error
 		self.prev_obs_dist = self.ranges[int(LIDAR_BEAMS/2 - 1)]
-		state = np.append(np.array(self.ranges), np.append(np.array([goal_dist, goal_dir_error, self.curr_yaw]), self.goal))
+		state = np.append(np.array(self.ranges), np.append(np.array([self.curr_pos[0], self.curr_pos[1], self.curr_yaw]), self.goal))
 		return state
 
 
